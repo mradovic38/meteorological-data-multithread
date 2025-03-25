@@ -29,23 +29,25 @@ public class CommandProcessor implements Runnable{
     @Override
     public void run() {
         try {
-            Command command = commandQueue.take(); // ovo blokira ako je empty
-            switch (command.getName()){
-                case "SCAN":
-                    ScanCommandHandler.handleScanCommand(command, directory, fileProcessingThreadPool, readWriteLock);
-                    break;
-                case "STATUS":
+            while(!Thread.currentThread().isInterrupted()) {
+                Command command = commandQueue.take(); // ovo blokira ako je empty
+                switch (command.getName()) {
+                    case "SCAN":
+                        ScanCommandHandler.handleScanCommand(command, directory, fileProcessingThreadPool, readWriteLock);
+                        break;
+                    case "STATUS":
 
-                    break;
-                case "MAP":
+                        break;
+                    case "MAP":
 
-                    break;
-                case "EXPORTMAP":
+                        break;
+                    case "EXPORTMAP":
 
-                    break;
-                default:
-                    System.err.println("[CMD] Error: Unknown command");
-                    break;
+                        break;
+                    default:
+                        System.err.println("[CMD] Error: Unknown command");
+                        break;
+                }
             }
 
         } catch (InterruptedException e) {
@@ -53,12 +55,4 @@ public class CommandProcessor implements Runnable{
         }
     }
 
-
-    public Path getDirectory() {
-        return directory;
-    }
-
-    public void setDirectory(Path directory) {
-        this.directory = directory;
-    }
 }
