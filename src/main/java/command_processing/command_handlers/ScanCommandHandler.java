@@ -37,7 +37,7 @@ public class ScanCommandHandler {
             task.scan();
 
         } catch (Exception e) {
-            System.err.println("SCAN error: " + e.getMessage());
+            System.err.println("[CMD] SCAN error: " + e.getMessage());
         }
     }
 }
