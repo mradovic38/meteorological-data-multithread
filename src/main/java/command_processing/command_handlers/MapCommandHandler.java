@@ -1,5 +1,6 @@
 package command_processing.command_handlers;
 
+import command_processing.Command;
 import utils.StationStats;
 
 import java.util.ArrayList;
@@ -7,9 +8,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 
-public class MapCommandHandler {
+public class MapCommandHandler implements CommandHandler {
 
-    public static void handleMapCommand(Map<Character, StationStats> inMemoryMap, ReadWriteLock readWriteLock){
+    private final Map<Character, StationStats> inMemoryMap;
+    private final ReadWriteLock readWriteLock;
+
+    public MapCommandHandler(Map<Character, StationStats> inMemoryMap, ReadWriteLock readWriteLock){
+        this.inMemoryMap = inMemoryMap;
+        this.readWriteLock = readWriteLock;
+    }
+    public void handle(Command command){
         try{
             readWriteLock.readLock().lock();
             if(inMemoryMap.isEmpty()){
@@ -34,7 +42,7 @@ public class MapCommandHandler {
             }
         }
         catch (Exception e){
-            System.err.println("An error occurred while processing MAP command");
+            System.err.println("[MAP] An error occurred while processing MAP command.");
         }
         finally {
             readWriteLock.readLock().unlock();

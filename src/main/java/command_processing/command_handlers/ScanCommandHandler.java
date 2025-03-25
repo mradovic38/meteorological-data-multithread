@@ -10,15 +10,28 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.stream.Collectors;
 
-public class ScanCommandHandler {
+public class ScanCommandHandler implements CommandHandler {
 
+    // ovo prati da li su 2 scan komande na istom fajlu, pa da ne bi doslo do konflikta
+    private static final Map<Path, Object> fileLocks = new ConcurrentHashMap<>();
 
-    public static void handleScanCommand(Command command, Path dir, ExecutorService fileProcessingThreadPool, ReadWriteLock readWriteLock) {
+    private final Path dir;
+    private final ExecutorService fileProcessingThreadPool;
+    private final ReadWriteLock readWriteLock;
+
+    public ScanCommandHandler(Path dir, ExecutorService fileProcessingThreadPool, ReadWriteLock readWriteLock) {
+        this.fileProcessingThreadPool = fileProcessingThreadPool;
+        this.readWriteLock = readWriteLock;
+        this.dir = dir;
+    }
+    public void handle(Command command) {
         try {
 
             // PROVERA FORMATA ARGUMENATA
@@ -48,42 +61,49 @@ public class ScanCommandHandler {
     }
 
 
-    private static void scan(double minTemp, double maxTemp, char letter, Path outputPath, Path dir, String jobName, ExecutorService executor, ReadWriteLock readWriteLock) {
+    private void scan(double minTemp, double maxTemp, char letter, Path outputPath, Path dir, String jobName, ExecutorService executor, ReadWriteLock readWriteLock) {
         // status -> running
         StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.RUNNING, null);
-        try {
-            System.out.println("[SCAN] job started");
-            readWriteLock.readLock().lock();
-            System.out.println("[SCAN] read lock acquired");
-
-            FileWriter fw = new FileWriter(outputPath.toFile(), false);
-            BufferedWriter writer = new BufferedWriter(fw);
-
-            List<Path> files = Files.list(dir)
-                    .filter(p -> Files.isRegularFile(p) && (p.toString().endsWith(".txt") || p.toString().endsWith(".csv")))
-                    .collect(Collectors.toList());
 
 
-            Object scanLock = new Object(); // lock za pisanje u fajl - nisam sig da li je write atomicno
 
-            // ? stoji jer nam je nebitan rezultat, ovako hocu samo da grupisem te rezultate da bih posle updatovao status
-            // fora je sto je runnable ne callable ScanSingleTask, pa ne vraca nista, al nije ni bitno
-            List<Future<?>> futures = files.stream()
-                    .map(file -> executor.submit(new ScanSingleTask(file, minTemp, maxTemp, letter, scanLock, writer)))
-                    .collect(Collectors.toList());
+        fileLocks.putIfAbsent(outputPath, new Object());
+        Object fileLock = fileLocks.get(outputPath);
 
-            // Ceka da se zavrse svi taskovi pa ce da stavi da je completed. ovi future-i vracaju null ja msm, al to nam nije bitno, bitno da postoje
-            for (Future<?> future : futures) {
-                future.get();
+        synchronized (fileLock) {
+            try {
+                readWriteLock.readLock().lock();
+
+                FileWriter fw = new FileWriter(outputPath.toFile(), false);
+                BufferedWriter writer = new BufferedWriter(fw);
+
+                List<Path> files = Files.list(dir)
+                        .filter(p -> Files.isRegularFile(p) && (p.toString().endsWith(".txt") || p.toString().endsWith(".csv")))
+                        .collect(Collectors.toList());
+
+
+                Object scanLock = new Object(); // lock za pisanje u fajl - nisam sig da li je write atomicno
+
+                // ? stoji jer nam je nebitan rezultat, ovako hocu samo da grupisem te rezultate da bih posle updatovao status
+                // fora je sto je runnable ne callable ScanSingleTask, pa ne vraca nista, al nije ni bitno
+                List<Future<?>> futures = files.stream()
+                        .map(file -> executor.submit(new ScanSingleTask(file, minTemp, maxTemp, letter, scanLock, writer)))
+                        .collect(Collectors.toList());
+
+                // Ceka da se zavrse svi taskovi pa ce da stavi da je completed. ovi future-i vracaju null ja msm, al to nam nije bitno, bitno da postoje
+                for (Future<?> future : futures) {
+                    future.get();
+                }
+                // status -> completed
+                StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.COMPLETED, null);
+
+            } catch (Exception e) {
+                StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.FAILED, null);
+                System.err.println("[SCAN] job failed: " + e.getMessage());
+            } finally {
+                readWriteLock.readLock().unlock();
+                fileLocks.remove(outputPath);
             }
-            // status -> completed
-            StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.COMPLETED, null);
-        } catch (Exception e) {
-            System.err.println("[SCAN] job failed: " + e.getMessage());
-            StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.FAILED, null);
-        }
-        finally {
-            readWriteLock.readLock().unlock();
         }
     }
 }

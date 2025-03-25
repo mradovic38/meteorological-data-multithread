@@ -1,3 +1,5 @@
+package report_generation;
+
 import utils.StationStats;
 
 import java.util.Map;

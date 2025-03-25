@@ -1,12 +1,10 @@
 import command_processing.Command;
 import command_processing.CommandParser;
-import command_processing.CommandProcessor;
 import command_processing.ParseResult;
-import command_processing.command_handlers.StartCommandHandler;
+import command_processing.command_handlers.*;
 import status_tracking.StatusTracker;
 import utils.StationStats;
 
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.concurrent.*;
@@ -29,6 +27,9 @@ public class CLIReader implements Runnable {
 
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
+    private final StartCommandHandler startCommandHandler;
+    private final ShutdownCommandHandler shutdownCommandHandler;
+
 
     public CLIReader(BlockingQueue<Command> commandQueue,
                      String directoryStr,
@@ -43,6 +44,9 @@ public class CLIReader implements Runnable {
         this.observerPool = observerPool;
         this.directoryStr = directoryStr;
         this.scheduler = scheduler;
+        this.startCommandHandler = new StartCommandHandler(directoryStr, fileProcessingThreadPool,
+                observerPool, inMemoryMap, readWriteLock, commandQueue, scheduler, commandProcessorPool);
+        this.shutdownCommandHandler = new ShutdownCommandHandler();
     }
 
     @Override
@@ -65,16 +69,13 @@ public class CLIReader implements Runnable {
 
             // ove se ne upisuju u blokirajuci red
             if(command.getName().equalsIgnoreCase("START")){
-                Path directory = StartCommandHandler.handleStartCommand(command, directoryStr, fileProcessingThreadPool, observerPool, inMemoryMap, readWriteLock);
-                CommandProcessor commandProcessor = new CommandProcessor(directory, commandQueue, fileProcessingThreadPool, inMemoryMap, readWriteLock);
-                ReportGenerator reportGenerator = new ReportGenerator(inMemoryMap, readWriteLock);
-                scheduler.scheduleAtFixedRate(reportGenerator, 1, 1, TimeUnit.MINUTES);
-                commandProcessorPool.execute(commandProcessor);
+                this.startCommandHandler.handle(command);
+
                 running.set(true);
                 continue;
             }
             else if(command.getName().equalsIgnoreCase("SHUTDOWN")){
-                System.out.println("TODO: Implement shutdown command"); //TODO implement shutdown command
+                this.shutdownCommandHandler.handle(command);
                 continue;
             }
 

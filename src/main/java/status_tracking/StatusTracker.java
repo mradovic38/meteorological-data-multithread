@@ -19,10 +19,12 @@ public class StatusTracker {
             else
                 jobLoads.put(jobId, cmd);
         }
+        else{
+            jobLoads.remove(jobId);
+        }
 
         if(status == JobStatus.COMPLETED || status == JobStatus.FAILED) {
             System.out.println(getStatus(jobId));
-            jobLoads.remove(jobId);
             jobs.remove(jobId);
         }
     }
