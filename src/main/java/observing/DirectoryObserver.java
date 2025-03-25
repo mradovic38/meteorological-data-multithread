@@ -1,8 +1,9 @@
+package observing;
+
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -12,8 +13,8 @@ public class DirectoryObserver implements Runnable {
     private final Map<Path, Long> lastModifiedMap = new ConcurrentHashMap<>();
     private final ExecutorService processingPool;
 
-    public DirectoryObserver(String dirPath, ExecutorService processingPool) {
-        this.dir = Paths.get(dirPath);
+    public DirectoryObserver(Path dir, ExecutorService processingPool) {
+        this.dir = dir;
         this.processingPool = processingPool;
     }
 
@@ -21,7 +22,7 @@ public class DirectoryObserver implements Runnable {
     public void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                checkDirectoryChanges();
+                observe();
                 Thread.sleep(5000); // provea svakih 5s
             }
         } catch (InterruptedException e) {
@@ -29,7 +30,7 @@ public class DirectoryObserver implements Runnable {
         }
     }
 
-    private void checkDirectoryChanges() {
+    private void observe() {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "*.{txt,csv}")) {
             for (Path file : stream) {
                 // promena

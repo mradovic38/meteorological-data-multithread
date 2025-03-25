@@ -76,7 +76,7 @@ public class CommandParser {
 
         int i = 1;
         while (i < tokens.length) {
-            String token = tokens[i].toLowerCase();
+            String token = tokens[i];
             // mora da pocne sa - ili --
             if (!token.startsWith("-")) {
                 errors.add("Invalid arg format: " + token);
