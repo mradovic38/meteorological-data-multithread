@@ -15,11 +15,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class CLIReader implements Runnable {
 
     private final BlockingQueue<Command> commandQueue;
-    private final String directoryStr;
-    private final ExecutorService fileProcessingThreadPool;
-    private final ExecutorService observerPool;
-    private final ExecutorService commandProcessorPool;
-    private final ScheduledExecutorService scheduler;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -39,11 +34,6 @@ public class CLIReader implements Runnable {
                      ScheduledExecutorService scheduler){
 
         this.commandQueue = commandQueue;
-        this.commandProcessorPool = commandProcessorPool;
-        this.fileProcessingThreadPool = fileProcessingThreadPool;
-        this.observerPool = observerPool;
-        this.directoryStr = directoryStr;
-        this.scheduler = scheduler;
         this.startCommandHandler = new StartCommandHandler(directoryStr, fileProcessingThreadPool,
                 observerPool, inMemoryMap, readWriteLock, commandQueue, scheduler, commandProcessorPool);
         this.shutdownCommandHandler = new ShutdownCommandHandler();
@@ -70,7 +60,6 @@ public class CLIReader implements Runnable {
             // ove se ne upisuju u blokirajuci red
             if(command.getName().equalsIgnoreCase("START")){
                 this.startCommandHandler.handle(command);
-
                 running.set(true);
                 continue;
             }
