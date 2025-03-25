@@ -1,5 +1,7 @@
 package status_tracking;
 
+import javafx.util.Pair;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 

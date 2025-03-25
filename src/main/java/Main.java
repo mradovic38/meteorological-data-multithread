@@ -34,15 +34,9 @@ public class Main {
             directory = args[0];  // ako je prosledjen preko komandne linije
         }
 
-
-
-        CLIReader cli = new CLIReader(commandQueue, directory, commandProcessorPool, fileProcessingThreadPool, observerPool);
-
-        ReportGenerator reportGenerator = new ReportGenerator();
-
+        CLIReader cli = new CLIReader(commandQueue, directory, commandProcessorPool, fileProcessingThreadPool, observerPool, scheduler);
 
         cliPool.execute(cli);
-        scheduler.scheduleAtFixedRate(reportGenerator, 1, 1, TimeUnit.MINUTES);
 
     }
 

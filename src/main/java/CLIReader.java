@@ -3,12 +3,16 @@ import command_processing.CommandParser;
 import command_processing.CommandProcessor;
 import command_processing.ParseResult;
 import command_processing.command_handlers.StartCommandHandler;
+import status_tracking.StatusTracker;
+import utils.StationStats;
 
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Scanner;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class CLIReader implements Runnable {
 
@@ -16,18 +20,29 @@ public class CLIReader implements Runnable {
     private final String directoryStr;
     private final ExecutorService fileProcessingThreadPool;
     private final ExecutorService observerPool;
-    private Path directory = null;
     private final ExecutorService commandProcessorPool;
+    private final ScheduledExecutorService scheduler;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
+    private final Map<Character, StationStats> inMemoryMap = new ConcurrentHashMap<>();
 
-    public CLIReader(BlockingQueue<Command> commandQueue, String directoryStr, ExecutorService commandProcessorPool, ExecutorService fileProcessingThreadPool, ExecutorService observerPool){
+    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
+
+    public CLIReader(BlockingQueue<Command> commandQueue,
+                     String directoryStr,
+                     ExecutorService commandProcessorPool,
+                     ExecutorService fileProcessingThreadPool,
+                     ExecutorService observerPool,
+                     ScheduledExecutorService scheduler){
+
         this.commandQueue = commandQueue;
         this.commandProcessorPool = commandProcessorPool;
         this.fileProcessingThreadPool = fileProcessingThreadPool;
         this.observerPool = observerPool;
         this.directoryStr = directoryStr;
+        this.scheduler = scheduler;
     }
 
     @Override
@@ -49,24 +64,30 @@ public class CLIReader implements Runnable {
             Command command = result.getCommand();
 
             // ove se ne upisuju u blokirajuci red
-            if(command.getName().equals("START")){
-                directory = StartCommandHandler.handleStartCommand(command, directoryStr, fileProcessingThreadPool, observerPool);
-                CommandProcessor commandProcessor = new CommandProcessor(directory, commandQueue, fileProcessingThreadPool);
+            if(command.getName().equalsIgnoreCase("START")){
+                Path directory = StartCommandHandler.handleStartCommand(command, directoryStr, fileProcessingThreadPool, observerPool, inMemoryMap, readWriteLock);
+                CommandProcessor commandProcessor = new CommandProcessor(directory, commandQueue, fileProcessingThreadPool, inMemoryMap, readWriteLock);
+                ReportGenerator reportGenerator = new ReportGenerator(inMemoryMap, readWriteLock);
+                scheduler.scheduleAtFixedRate(reportGenerator, 1, 1, TimeUnit.MINUTES);
                 commandProcessorPool.execute(commandProcessor);
                 running.set(true);
                 continue;
             }
-            else if(command.getName().equals("SHUTDOWN")){
+            else if(command.getName().equalsIgnoreCase("SHUTDOWN")){
                 System.out.println("TODO: Implement shutdown command"); //TODO implement shutdown command
                 continue;
             }
 
             try {
-                if(running.get()) // samo ako je startovano
-                    commandQueue.put(command);
-                else{
-                    System.err.println("[CLI] Error: You must start the program with START command first.");
-                }
+                if (running.get()) { // samo ako je startovano
+                    if (command.getArgs().containsKey("job")) {
+                        StatusTracker.updateStatus(command.getArgs().get("job"), StatusTracker.JobStatus.PENDING);
+                    }
+                commandQueue.put(command);
+            }
+            else{
+                System.err.println("[CLI] Error: You must start the program with START command first.");
+            }
             } catch (InterruptedException e) {
                 System.err.println("[CLI] Error adding command to queue.");
             }

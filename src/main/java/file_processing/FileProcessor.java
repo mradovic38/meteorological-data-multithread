@@ -1,21 +1,23 @@
-package observing;
+package file_processing;
+
+import utils.StationStats;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class FileProcessor implements Runnable {
     private final Path file;
-    private static final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private static final Map<Character, StationStats> stationMap = new TreeMap<>();
+    private final ReadWriteLock lock;
+    private final Map<Character, StationStats> inMemoryMap;
 
-    public FileProcessor(Path file, boolean isNew) {
+    public FileProcessor(Path file, boolean isNew, Map<Character, StationStats> inMemoryMap, ReadWriteLock lock) {
         this.file = file;
+        this.lock = lock;
+        this.inMemoryMap = inMemoryMap;
     }
 
     @Override
@@ -44,22 +46,12 @@ public class FileProcessor implements Runnable {
 
         lock.writeLock().lock();
         try {
-            stationMap.compute(firstChar, (k, v) -> {
-                if (v == null) return new StationStats(1, temp);
-                return new StationStats(v.count + 1, v.sum + temp);
-            });
+            inMemoryMap.computeIfAbsent(firstChar, k -> new StationStats()) // ako nema u mapi napravi novi
+                    .addMeasurement(temp); // dodaj mu measurement
         } finally {
             lock.writeLock().unlock();
         }
     }
 
-    private static class StationStats {
-        int count;
-        double sum;
 
-        StationStats(int count, double sum) {
-            this.count = count;
-            this.sum = sum;
-        }
-    }
 }

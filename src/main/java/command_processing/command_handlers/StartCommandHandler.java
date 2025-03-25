@@ -3,6 +3,7 @@ package command_processing.command_handlers;
 import command_processing.Command;
 import observing.DirectoryObserver;
 import org.yaml.snakeyaml.Yaml;
+import utils.StationStats;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -10,10 +11,16 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.locks.ReadWriteLock;
 
 public class StartCommandHandler {
 
-    public static Path handleStartCommand(Command command, String directory, ExecutorService fileProcessingThreadPool, ExecutorService observerPool) {
+    public static Path handleStartCommand(Command command,
+                                          String directory,
+                                          ExecutorService fileProcessingThreadPool,
+                                          ExecutorService observerPool,
+                                          Map<Character, StationStats> inMemoryMap,
+                                          ReadWriteLock readWriteLock) {
         Path directoryPath;
 
         try {
@@ -28,7 +35,7 @@ public class StartCommandHandler {
             return null;
         }
 
-        DirectoryObserver watcher = new DirectoryObserver(directoryPath, fileProcessingThreadPool);
+        DirectoryObserver watcher = new DirectoryObserver(directoryPath, fileProcessingThreadPool, inMemoryMap, readWriteLock);
         observerPool.execute(watcher);
 
         if(command.getArgs().containsKey("load-config")){
