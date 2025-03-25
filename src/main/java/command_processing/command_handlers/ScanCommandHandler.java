@@ -50,7 +50,7 @@ public class ScanCommandHandler {
 
     private static void scan(double minTemp, double maxTemp, char letter, Path outputPath, Path dir, String jobName, ExecutorService executor, ReadWriteLock readWriteLock) {
         // status -> running
-        StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.RUNNING);
+        StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.RUNNING, null);
         try {
             System.out.println("[SCAN] job started");
             readWriteLock.readLock().lock();
@@ -77,10 +77,10 @@ public class ScanCommandHandler {
                 future.get();
             }
             // status -> completed
-            StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.COMPLETED);
+            StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.COMPLETED, null);
         } catch (Exception e) {
             System.err.println("[SCAN] job failed: " + e.getMessage());
-            StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.FAILED);
+            StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.FAILED, null);
         }
         finally {
             readWriteLock.readLock().unlock();

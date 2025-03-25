@@ -81,7 +81,7 @@ public class CLIReader implements Runnable {
             try {
                 if (running.get()) { // samo ako je startovano
                     if (command.getArgs().containsKey("job")) {
-                        StatusTracker.updateStatus(command.getArgs().get("job"), StatusTracker.JobStatus.PENDING);
+                        StatusTracker.updateStatus(command.getArgs().get("job"), StatusTracker.JobStatus.PENDING, command);
                     }
                 commandQueue.put(command);
             }
