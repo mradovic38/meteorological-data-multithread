@@ -32,8 +32,6 @@ public class MapCommandHandler implements CommandHandler {
 
                 System.out.println(key1 + ": " + immutableMap.get(key1).getSnapshot().toString() + " | " +
                         key2 + ": " + immutableMap.get(key2).getSnapshot().toString());
-                System.out.println(key1 + ": " + immutableMap.get(key1).getSnapshot().toString() + " | " +
-                        key2 + ": " + immutableMap.get(key2).getSnapshot().toString());
             }
 
             // ako je neparan broj slova u mapi, printuj samo prvo
