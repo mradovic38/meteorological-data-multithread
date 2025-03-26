@@ -79,7 +79,7 @@ public class StartCommandHandler implements CommandHandler {
 
         ScanCommandHandler scan = new ScanCommandHandler(this.directoryPath, fileProcessingThreadPool, readWriteLock);
         StatusCommandHandler status = new StatusCommandHandler();
-        MapCommandHandler map = new MapCommandHandler(inMemoryMap, readWriteLock);
+        MapCommandHandler map = new MapCommandHandler(inMemoryMap);
 
         // osigurava da EXPORTMAP i ReportGenerator ne rade istovremeno
         Object exportLock = new Object();
