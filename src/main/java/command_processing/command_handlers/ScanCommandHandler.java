@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReadWriteLock;
 import java.util.stream.Collectors;
 
 public class ScanCommandHandler implements CommandHandler {
@@ -27,13 +26,11 @@ public class ScanCommandHandler implements CommandHandler {
 
     private final Path dir;
     private final ExecutorService fileProcessingThreadPool;
-    private final ReadWriteLock readWriteLock;
 
     private final Map<String, ScanJobContext> activeJobs = new ConcurrentHashMap<>();
 
-    public ScanCommandHandler(Path dir, ExecutorService fileProcessingThreadPool, ReadWriteLock readWriteLock) {
+    public ScanCommandHandler(Path dir, ExecutorService fileProcessingThreadPool) {
         this.fileProcessingThreadPool = fileProcessingThreadPool;
-        this.readWriteLock = readWriteLock;
         this.dir = dir;
     }
     public void handle(Command command) {
@@ -58,7 +55,7 @@ public class ScanCommandHandler implements CommandHandler {
             char letter = Character.toUpperCase(letterStr.charAt(0));
 
             // obrada
-            scan(command, min, max, letter, outputPath, dir, jobName, fileProcessingThreadPool, readWriteLock);
+            scan(command, min, max, letter, outputPath, dir, jobName, fileProcessingThreadPool);
 
         } catch (Exception e) {
             System.err.println("[CMD] SCAN error: " + e.getMessage());
@@ -66,7 +63,7 @@ public class ScanCommandHandler implements CommandHandler {
     }
 
 
-    private void scan(Command command, double minTemp, double maxTemp, char letter, Path outputPath, Path dir, String jobName, ExecutorService executor, ReadWriteLock readWriteLock) {
+    private void scan(Command command, double minTemp, double maxTemp, char letter, Path outputPath, Path dir, String jobName, ExecutorService executor) {
         // status -> running
         StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.RUNNING, null);
 
@@ -78,7 +75,6 @@ public class ScanCommandHandler implements CommandHandler {
         synchronized (fileLock) {
 
             try {
-                readWriteLock.readLock().lock();
                 writer = new BufferedWriter(new FileWriter(outputPath.toFile(), false));
 
 
@@ -100,7 +96,7 @@ public class ScanCommandHandler implements CommandHandler {
                 files.stream()
                         .map(file -> executor.submit(new ScanSingleTask(file, minTemp, maxTemp, letter, scanLock,
                                 finalWriter, cancelledFlag, counter, totalFiles, jobName, activeJobs, command,
-                                readWriteLock, fileLocks, outputPath))).collect(Collectors.toList());;
+                                fileLocks, outputPath))).collect(Collectors.toList());;
 
 
             } catch (Exception e) {

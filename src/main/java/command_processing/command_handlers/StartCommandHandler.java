@@ -71,7 +71,7 @@ public class StartCommandHandler implements CommandHandler {
 
         Path exportPath = Paths.get(loadFromConfig("export-file"));
 
-        ScanCommandHandler scan = new ScanCommandHandler(this.directoryPath, fileProcessingThreadPool, readWriteLock);
+        ScanCommandHandler scan = new ScanCommandHandler(this.directoryPath, fileProcessingThreadPool);
 
         DirectoryObserver watcher = new DirectoryObserver(this.directoryPath, fileProcessingThreadPool, inMemoryMap, readWriteLock, scan, commandQueue);
         this.observerPool.execute(watcher);

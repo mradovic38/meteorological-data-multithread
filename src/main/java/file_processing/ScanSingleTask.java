@@ -30,12 +30,11 @@ public class ScanSingleTask implements Runnable {
 
     private final Map<String, ScanJobContext> activeJobs;
     private final Map<Path, Object> fileLocks;
-    private final ReadWriteLock readWriteLock;
     private final Path outputPath;
 
     public ScanSingleTask(Path file, double minTemp, double maxTemp, char letter, Object scanLock,
                           BufferedWriter writer, AtomicBoolean cancelled, AtomicInteger counter, int totalFiles, String jobName,
-                          Map<String, ScanJobContext> activeJobs, Command command, ReadWriteLock readWriteLock,
+                          Map<String, ScanJobContext> activeJobs, Command command,
                           Map<Path, Object> fileLocks, Path outputPath) {
         this.file = file;
         this.minTemp = minTemp;
@@ -52,7 +51,6 @@ public class ScanSingleTask implements Runnable {
         this.activeJobs = activeJobs;
         this.activeJobs.put(jobName, new ScanJobContext(jobName, command, cancelled));
         this.fileLocks = fileLocks;
-        this.readWriteLock = readWriteLock;
         this.outputPath = outputPath;
     }
 
@@ -109,7 +107,6 @@ public class ScanSingleTask implements Runnable {
                         System.err.println("[SCAN] Error closing writer: " + e.getMessage());
                     }
 
-                    this.readWriteLock.readLock().unlock();
                     this.fileLocks.remove(outputPath);
                     this.activeJobs.remove(jobName);
                 }
