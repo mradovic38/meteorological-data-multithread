@@ -1,45 +1,39 @@
 package utils;
-
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.math.MathContext;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.DoubleAdder;
 
 public class StationStats {
-    private AtomicReference<BigInteger> count;
-    private AtomicReference<BigDecimal> sum;
+    private final AtomicInteger count;
+    private final DoubleAdder sum; // hteo sam AtomicReference<BigInt> i <BigDecimal> al je presporo
 
     public StationStats() {
-        this.count = new AtomicReference<>(BigInteger.ZERO);
-        this.sum = new AtomicReference<>(BigDecimal.ZERO);
+        this.count = new AtomicInteger(0);
+        this.sum = new DoubleAdder();
     }
 
     public void addMeasurement(double temperature) {
-        this.count.getAndUpdate(c -> c.add(BigInteger.ONE));
-        this.sum.getAndUpdate(c -> c.add(new BigDecimal(temperature, MathContext.DECIMAL64)));
+        count.incrementAndGet();
+        sum.add(temperature);
     }
-
 
     public StationStatsSnapshot getSnapshot() {
-        return new StationStatsSnapshot(count.get(), sum.get());
+        return new StationStatsSnapshot(count.get(), sum.sum());
     }
 
-    // pomocna klasa - immutable, nisu atomic
     public static class StationStatsSnapshot {
-        private final BigInteger count;
-        private final BigDecimal sum;
+        private final int count;
+        private final double sum;
 
-        public StationStatsSnapshot(BigInteger count, BigDecimal sum) {
+        public StationStatsSnapshot(int count, double sum) {
             this.count = count;
             this.sum = sum;
         }
 
-        public BigInteger getCount() { return count; }
-        public BigDecimal getSum() { return sum; }
+        public long getCount() { return count; }
+        public double getSum() { return sum; }
 
         public String toString() {
-            return  count + " - " + sum;
+            return count + " - " + sum;
         }
     }
-
 }

@@ -34,7 +34,7 @@ public class MapWriter {
                             String line = String.format("%c,%s,%s\n",
                                     letter,
                                     snap.getCount(),
-                                    snap.getSum().stripTrailingZeros().toPlainString());
+                                    snap.getSum());
                             writer.write(line);
                         } catch (Exception e) {
                             System.err.println(prefix + "Error writing entry: " + e.getMessage());
