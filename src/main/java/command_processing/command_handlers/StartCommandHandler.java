@@ -12,10 +12,7 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.ReadWriteLock;
 
 public class StartCommandHandler implements CommandHandler {
@@ -31,14 +28,14 @@ public class StartCommandHandler implements CommandHandler {
 
     private final ExecutorService commandProcessorPool;
     private final ScheduledExecutorService scheduler;
-    private final BlockingQueue<Command> commandQueue;
+    private final BlockingDeque<Command> commandQueue;
 
     public StartCommandHandler(String directory,
                                ExecutorService fileProcessingThreadPool,
                                ExecutorService observerPool,
                                Map<Character, StationStats> inMemoryMap,
                                ReadWriteLock readWriteLock,
-                               BlockingQueue<Command> commandQueue,
+                               BlockingDeque<Command> commandQueue,
                                ScheduledExecutorService scheduler,
                                ExecutorService commandProcessorPool) {
         this.directory = directory;
@@ -68,9 +65,6 @@ public class StartCommandHandler implements CommandHandler {
             return;
         }
 
-        DirectoryObserver watcher = new DirectoryObserver(this.directoryPath, fileProcessingThreadPool, inMemoryMap, readWriteLock);
-        this.observerPool.execute(watcher);
-
         if(command.getArgs().containsKey("load-config")){
             // TODO: ucitaj stare poslove
         }
@@ -78,6 +72,10 @@ public class StartCommandHandler implements CommandHandler {
         Path exportPath = Paths.get(loadFromConfig("export-file"));
 
         ScanCommandHandler scan = new ScanCommandHandler(this.directoryPath, fileProcessingThreadPool, readWriteLock);
+
+        DirectoryObserver watcher = new DirectoryObserver(this.directoryPath, fileProcessingThreadPool, inMemoryMap, readWriteLock, scan, commandQueue);
+        this.observerPool.execute(watcher);
+
         StatusCommandHandler status = new StatusCommandHandler();
         MapCommandHandler map = new MapCommandHandler(inMemoryMap);
 

@@ -27,4 +27,12 @@ public class Command {
     public String getArgByKey(String key) {
         return args.get(key);
     }
+
+    @Override
+    public String toString() {
+        return "Command{" +
+                "name='" + name + '\'' +
+                ", args=" + args +
+                '}';
+    }
 }

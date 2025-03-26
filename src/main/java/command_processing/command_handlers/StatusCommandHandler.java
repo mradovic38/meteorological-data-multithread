@@ -1,6 +1,7 @@
 package command_processing.command_handlers;
 
 import command_processing.Command;
+import status_tracking.StatusTracker;
 
 public class StatusCommandHandler implements CommandHandler {
 
@@ -13,6 +14,6 @@ public class StatusCommandHandler implements CommandHandler {
             System.err.println("[STATUS] Error: Job not found");
             return;
         }
-        System.out.println();
+        System.out.println(StatusTracker.getStatus(job));
     }
 }

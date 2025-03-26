@@ -6,6 +6,7 @@ import status_tracking.StatusTracker;
 import utils.StationStats;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Scanner;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -14,7 +15,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class CLIReader implements Runnable {
 
-    private final BlockingQueue<Command> commandQueue;
+    private final BlockingDeque<Command> commandQueue;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -22,7 +23,7 @@ public class CLIReader implements Runnable {
     private final ShutdownCommandHandler shutdownCommandHandler;
 
 
-    public CLIReader(BlockingQueue<Command> commandQueue,
+    public CLIReader(BlockingDeque<Command> commandQueue,
                      String directoryStr,
                      ExecutorService commandProcessorPool,
                      ExecutorService fileProcessingThreadPool,
@@ -70,7 +71,7 @@ public class CLIReader implements Runnable {
 
             try {
                 if (running.get()) { // samo ako je startovano
-                    if (command.getArgs().containsKey("job")) {
+                    if (command.getArgs().containsKey("job") && !command.getName().equalsIgnoreCase("STATUS")) {
                         StatusTracker.updateStatus(command.getArgs().get("job"), StatusTracker.JobStatus.PENDING, command);
                     }
                 commandQueue.put(command);

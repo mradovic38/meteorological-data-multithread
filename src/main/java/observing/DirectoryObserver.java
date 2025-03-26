@@ -1,5 +1,7 @@
 package observing;
 
+import command_processing.Command;
+import command_processing.command_handlers.ScanCommandHandler;
 import file_processing.FileProcessor;
 import utils.StationStats;
 
@@ -8,6 +10,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -20,11 +23,18 @@ public class DirectoryObserver implements Runnable {
     private final Map<Character, StationStats> inMemoryMap;
     private final ReadWriteLock readWriteLock;
 
-    public DirectoryObserver(Path dir, ExecutorService processingPool, Map<Character, StationStats> inMemoryMap, ReadWriteLock readWriteLock) {
+    private final ScanCommandHandler scanCommandHandler;
+    private final BlockingDeque<Command> commandQueue;
+
+    public DirectoryObserver(Path dir, ExecutorService processingPool, Map<Character, StationStats> inMemoryMap,
+                             ReadWriteLock readWriteLock, ScanCommandHandler scanCommandHandler, BlockingDeque<Command> commandQueue){
         this.dir = dir;
         this.processingPool = processingPool;
         this.inMemoryMap = inMemoryMap;
         this.readWriteLock = readWriteLock;
+
+        this.scanCommandHandler = scanCommandHandler;
+        this.commandQueue = commandQueue;
     }
 
     @Override
@@ -75,6 +85,8 @@ public class DirectoryObserver implements Runnable {
 
             // ako ima promene - reprocess
             if (changesDetected) {
+                List<Command> requeueCommands = scanCommandHandler.cancelActiveJobs();
+                requeueCommands.forEach(commandQueue::addFirst);
                 processAllFiles(currentFiles);
             }
 
@@ -93,6 +105,7 @@ public class DirectoryObserver implements Runnable {
             currentFiles.forEach(file ->
                     processingPool.submit(new FileProcessor(file, inMemoryMap, readWriteLock))
             );
+
 
             System.out.println("[OBS] Reprocessing all files (" + currentFiles.size() + " files)");
         } finally {

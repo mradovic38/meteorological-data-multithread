@@ -2,6 +2,8 @@ package command_processing;
 
 import command_processing.command_handlers.CommandHandler;
 
+import java.util.Arrays;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.BlockingQueue;
 
 
@@ -16,7 +18,7 @@ public class CommandProcessor implements Runnable{
 
 
     public CommandProcessor(
-                            BlockingQueue<Command> commandQueue,
+                            BlockingDeque<Command> commandQueue,
                             CommandHandler scanHandler,
                             CommandHandler statusHandler,
                             CommandHandler mapHandler,
@@ -34,6 +36,7 @@ public class CommandProcessor implements Runnable{
             while(!Thread.currentThread().isInterrupted()) {
 
                 Command command = commandQueue.take(); // ovo blokira ako je empty
+
                 switch (command.getName()) {
 
                     case "SCAN":

@@ -23,7 +23,7 @@ public class Main {
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     // blocking queue za komande
-    private static final BlockingQueue<Command> commandQueue = new LinkedBlockingQueue<>();
+    private static final BlockingDeque<Command> commandQueue = new LinkedBlockingDeque<>();
 
 
     public static void main(String[] args) {

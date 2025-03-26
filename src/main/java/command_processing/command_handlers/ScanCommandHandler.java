@@ -3,17 +3,20 @@ package command_processing.command_handlers;
 import status_tracking.StatusTracker;
 import file_processing.ScanSingleTask;
 import command_processing.Command;
+import utils.ScanJobContext;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.stream.Collectors;
 
@@ -25,6 +28,8 @@ public class ScanCommandHandler implements CommandHandler {
     private final Path dir;
     private final ExecutorService fileProcessingThreadPool;
     private final ReadWriteLock readWriteLock;
+
+    private final Map<String, ScanJobContext> activeJobs = new ConcurrentHashMap<>();
 
     public ScanCommandHandler(Path dir, ExecutorService fileProcessingThreadPool, ReadWriteLock readWriteLock) {
         this.fileProcessingThreadPool = fileProcessingThreadPool;
@@ -53,7 +58,7 @@ public class ScanCommandHandler implements CommandHandler {
             char letter = Character.toUpperCase(letterStr.charAt(0));
 
             // obrada
-            scan(min, max, letter, outputPath, dir, jobName, fileProcessingThreadPool, readWriteLock);
+            scan(command, min, max, letter, outputPath, dir, jobName, fileProcessingThreadPool, readWriteLock);
 
         } catch (Exception e) {
             System.err.println("[CMD] SCAN error: " + e.getMessage());
@@ -61,21 +66,22 @@ public class ScanCommandHandler implements CommandHandler {
     }
 
 
-    private void scan(double minTemp, double maxTemp, char letter, Path outputPath, Path dir, String jobName, ExecutorService executor, ReadWriteLock readWriteLock) {
+    private void scan(Command command, double minTemp, double maxTemp, char letter, Path outputPath, Path dir, String jobName, ExecutorService executor, ReadWriteLock readWriteLock) {
         // status -> running
         StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.RUNNING, null);
 
-
+        BufferedWriter writer = null;
 
         fileLocks.putIfAbsent(outputPath, new Object());
         Object fileLock = fileLocks.get(outputPath);
 
         synchronized (fileLock) {
+
             try {
                 readWriteLock.readLock().lock();
+                writer = new BufferedWriter(new FileWriter(outputPath.toFile(), false));
 
-                FileWriter fw = new FileWriter(outputPath.toFile(), false);
-                BufferedWriter writer = new BufferedWriter(fw);
+
 
                 List<Path> files = Files.list(dir)
                         .filter(p -> Files.isRegularFile(p) && (p.toString().endsWith(".txt") || p.toString().endsWith(".csv")))
@@ -84,26 +90,37 @@ public class ScanCommandHandler implements CommandHandler {
 
                 Object scanLock = new Object(); // lock za pisanje u fajl - nisam sig da li je write atomicno
 
+                AtomicBoolean cancelledFlag = new AtomicBoolean(false);
                 // ? stoji jer nam je nebitan rezultat, ovako hocu samo da grupisem te rezultate da bih posle updatovao status
                 // fora je sto je runnable ne callable ScanSingleTask, pa ne vraca nista, al nije ni bitno
-                List<Future<?>> futures = files.stream()
-                        .map(file -> executor.submit(new ScanSingleTask(file, minTemp, maxTemp, letter, scanLock, writer)))
-                        .collect(Collectors.toList());
+                BufferedWriter finalWriter = writer;
+                AtomicInteger counter = new AtomicInteger(0);
+                int totalFiles = files.size();
 
-                // Ceka da se zavrse svi taskovi pa ce da stavi da je completed. ovi future-i vracaju null ja msm, al to nam nije bitno, bitno da postoje
-                for (Future<?> future : futures) {
-                    future.get();
-                }
-                // status -> completed
-                StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.COMPLETED, null);
+                files.stream()
+                        .map(file -> executor.submit(new ScanSingleTask(file, minTemp, maxTemp, letter, scanLock,
+                                finalWriter, cancelledFlag, counter, totalFiles, jobName, activeJobs, command,
+                                readWriteLock, fileLocks, outputPath))).collect(Collectors.toList());;
+
 
             } catch (Exception e) {
                 StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.FAILED, null);
-                System.err.println("[SCAN] job failed: " + e.getMessage());
-            } finally {
-                readWriteLock.readLock().unlock();
-                fileLocks.remove(outputPath);
+                System.err.println("[SCAN] " +  command.getName() +  " failed: " + e.getMessage());
             }
         }
     }
+
+    public List<Command> cancelActiveJobs() {
+        List<Command> commands = new ArrayList<>();
+
+        for (ScanJobContext context : activeJobs.values()) {
+            context.setCancelledFlag(true);
+            StatusTracker.updateStatus(context.getJobId(), StatusTracker.JobStatus.CANCELLED, null);
+            commands.add(context.getCommand());
+        }
+        activeJobs.clear();
+        return commands;
+    }
+
+
 }

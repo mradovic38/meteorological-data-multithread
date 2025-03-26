@@ -25,7 +25,6 @@ public class StatusTracker {
 
         if(status == JobStatus.COMPLETED || status == JobStatus.FAILED) {
             System.out.println(getStatus(jobId));
-            jobs.remove(jobId);
         }
     }
 
@@ -33,13 +32,17 @@ public class StatusTracker {
         return jobLoads;
     }
 
+    public static JobStatus getStatusObj(String jobId) {
+        return jobs.getOrDefault(jobId, JobStatus.UNKNOWN);
+    }
+
 
     public static String getStatus(String jobId) {
         JobStatus status = jobs.getOrDefault(jobId, JobStatus.UNKNOWN);
-        return "[STATUS] " + jobId + " is " + status.toString().toLowerCase();
+        return "[STATUS] " + jobId + " is " + status.toString().toLowerCase() + ".";
     }
 
     public enum JobStatus {
-        PENDING, RUNNING, COMPLETED, FAILED, UNKNOWN
+        PENDING, RUNNING, COMPLETED, FAILED, CANCELLED, UNKNOWN
     }
 }
