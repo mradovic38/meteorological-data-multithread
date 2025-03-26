@@ -58,7 +58,7 @@ public class StartCommandHandler implements CommandHandler {
 
         try {
             if (this.directory == null) {
-                this.directoryPath = Paths.get(loadDirectoryFromConfig());
+                this.directoryPath = Paths.get(loadFromConfig("directory"));
             } else {
                 this.directoryPath = Paths.get(directory);
             }
@@ -68,33 +68,38 @@ public class StartCommandHandler implements CommandHandler {
             return;
         }
 
-        DirectoryObserver watcher = new DirectoryObserver(directoryPath, fileProcessingThreadPool, inMemoryMap, readWriteLock);
+        DirectoryObserver watcher = new DirectoryObserver(this.directoryPath, fileProcessingThreadPool, inMemoryMap, readWriteLock);
         this.observerPool.execute(watcher);
 
         if(command.getArgs().containsKey("load-config")){
             // TODO: ucitaj stare poslove
         }
 
+        Path exportPath = Paths.get(loadFromConfig("export-file"));
 
         ScanCommandHandler scan = new ScanCommandHandler(this.directoryPath, fileProcessingThreadPool, readWriteLock);
         StatusCommandHandler status = new StatusCommandHandler();
         MapCommandHandler map = new MapCommandHandler(inMemoryMap, readWriteLock);
-        ExportmapCommandHandler exportmap = new ExportmapCommandHandler(fileProcessingThreadPool, inMemoryMap, readWriteLock);
+
+        // osigurava da EXPORTMAP i ReportGenerator ne rade istovremeno
+        Object exportLock = new Object();
+
+        ExportmapCommandHandler exportmap = new ExportmapCommandHandler(fileProcessingThreadPool, inMemoryMap, readWriteLock, exportPath, exportLock);
 
         CommandProcessor commandProcessor = new CommandProcessor(this.commandQueue, scan, status, map, exportmap);
 
-        ReportGenerator reportGenerator = new ReportGenerator(inMemoryMap, readWriteLock);
+        ReportGenerator reportGenerator = new ReportGenerator(inMemoryMap, readWriteLock, exportPath, exportLock);
         this.scheduler.scheduleAtFixedRate(reportGenerator, 1, 1, TimeUnit.MINUTES);
 
         this.commandProcessorPool.execute(commandProcessor);
     }
 
 
-    private static String loadDirectoryFromConfig() {
+    private static String loadFromConfig(String key) {
         try (InputStream input = new FileInputStream("src/main/resources/load_config.yaml")) {
             Yaml yaml = new Yaml();
             Map<String, Object> config = yaml.load(input);
-            return (String) config.get("directory");  // Assuming YAML has a 'directory' key
+            return (String) config.get(key);
         } catch (Exception e) {
             throw new RuntimeException("Check if the config file exists.");
         }

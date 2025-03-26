@@ -18,10 +18,6 @@ public class CLIReader implements Runnable {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    private final Map<Character, StationStats> inMemoryMap = new ConcurrentHashMap<>();
-
-    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
-
     private final StartCommandHandler startCommandHandler;
     private final ShutdownCommandHandler shutdownCommandHandler;
 
@@ -34,8 +30,12 @@ public class CLIReader implements Runnable {
                      ScheduledExecutorService scheduler){
 
         this.commandQueue = commandQueue;
+
+        ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+        Map<Character, StationStats> inMemoryMap = new ConcurrentHashMap<>();
         this.startCommandHandler = new StartCommandHandler(directoryStr, fileProcessingThreadPool,
                 observerPool, inMemoryMap, readWriteLock, commandQueue, scheduler, commandProcessorPool);
+
         this.shutdownCommandHandler = new ShutdownCommandHandler();
     }
 

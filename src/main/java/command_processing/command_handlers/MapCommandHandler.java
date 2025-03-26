@@ -26,11 +26,14 @@ public class MapCommandHandler implements CommandHandler {
             }
 
             List<Character> keys = new ArrayList<>(inMemoryMap.keySet());
+            keys.sort(Character::compareTo);
             System.out.println("[CMD] Current state of the map:");
             for (int i = 0; i < keys.size() - 1; i += 2) {
                 Character key1 = keys.get(i);
                 Character key2 = keys.get(i + 1);
 
+                System.out.println(key1 + ": " + inMemoryMap.get(key1).getSnapshot().toString() + " | " +
+                        key2 + ": " + inMemoryMap.get(key2).getSnapshot().toString());
                 System.out.println(key1 + ": " + inMemoryMap.get(key1).getSnapshot().toString() + " | " +
                         key2 + ": " + inMemoryMap.get(key2).getSnapshot().toString());
             }

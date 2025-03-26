@@ -14,7 +14,7 @@ public class FileProcessor implements Runnable {
     private final ReadWriteLock lock;
     private final Map<Character, StationStats> inMemoryMap;
 
-    public FileProcessor(Path file, boolean isNew, Map<Character, StationStats> inMemoryMap, ReadWriteLock lock) {
+    public FileProcessor(Path file, Map<Character, StationStats> inMemoryMap, ReadWriteLock lock) {
         this.file = file;
         this.lock = lock;
         this.inMemoryMap = inMemoryMap;

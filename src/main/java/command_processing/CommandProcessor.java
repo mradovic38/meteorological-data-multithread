@@ -9,10 +9,10 @@ public class CommandProcessor implements Runnable{
 
     private final BlockingQueue<Command> commandQueue;
 
-    private CommandHandler scanHandler;
-    private CommandHandler statusHandler;
-    private CommandHandler mapHandler;
-    private CommandHandler exportmapHandler;
+    private final CommandHandler scanHandler;
+    private final CommandHandler statusHandler;
+    private final CommandHandler mapHandler;
+    private final CommandHandler exportmapHandler;
 
 
     public CommandProcessor(
