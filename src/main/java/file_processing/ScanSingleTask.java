@@ -31,11 +31,15 @@ public class ScanSingleTask implements Runnable {
     private final Map<String, ScanJobContext> activeJobs;
     private final Map<Path, Object> fileLocks;
     private final Path outputPath;
+    private final AtomicBoolean shutdown;
+
+    private final Command command;
+
 
     public ScanSingleTask(Path file, double minTemp, double maxTemp, char letter, Object scanLock,
                           BufferedWriter writer, AtomicBoolean cancelled, AtomicInteger counter, int totalFiles, String jobName,
                           Map<String, ScanJobContext> activeJobs, Command command,
-                          Map<Path, Object> fileLocks, Path outputPath) {
+                          Map<Path, Object> fileLocks, Path outputPath, AtomicBoolean shutdown) {
         this.file = file;
         this.minTemp = minTemp;
         this.maxTemp = maxTemp;
@@ -52,6 +56,9 @@ public class ScanSingleTask implements Runnable {
         this.activeJobs.put(jobName, new ScanJobContext(jobName, command, cancelled));
         this.fileLocks = fileLocks;
         this.outputPath = outputPath;
+        this.shutdown = shutdown;
+
+        this.command = command;
     }
 
     @Override
@@ -62,7 +69,7 @@ public class ScanSingleTask implements Runnable {
             if (file.toString().endsWith(".csv")) reader.readLine();
 
             String line;
-            while ((line = reader.readLine()) != null && !cancelled.get() && !Thread.currentThread().isInterrupted()) {
+            while (!shutdown.get() && (line = reader.readLine()) != null && !cancelled.get() && !Thread.currentThread().isInterrupted()) {
                 String[] parts = line.split(";");
                 if (parts.length != 2) continue;
 
@@ -89,29 +96,32 @@ public class ScanSingleTask implements Runnable {
         } catch (IOException e) {
             if (cancelled.get()) { // ako je korisnik cancellovao
                 System.out.println("[SCAN] Processing cancelled for " + file);
-                StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.CANCELLED, null);
+                StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.CANCELLED, command);
                 return;
             }
             System.err.println("[SCAN] Error processing " + file + ": " + e.getMessage());
-            StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.FAILED, null);
+            StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.FAILED, command);
         }
         finally {
-            synchronized (counter) {
-                counter.incrementAndGet();
-                if (counter.get() == totalFiles) {
-                    StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.COMPLETED, null);
+            if (!shutdown.get()) {
+                synchronized (counter) {
+                    counter.incrementAndGet();
+                    if (counter.get() == totalFiles) {
+                        StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.COMPLETED, command);
 
-                    try {
-                        writer.close(); // Properly close the writer
-                    } catch (IOException e) {
-                        System.err.println("[SCAN] Error closing writer: " + e.getMessage());
+                        try {
+                            writer.close(); // Properly close the writer
+                        } catch (IOException e) {
+                            System.err.println("[SCAN] Error closing writer: " + e.getMessage());
+                        }
+
+                        this.fileLocks.remove(outputPath);
+                        this.activeJobs.remove(jobName);
                     }
-
-                    this.fileLocks.remove(outputPath);
-                    this.activeJobs.remove(jobName);
                 }
             }
         }
+
     }
 
 }

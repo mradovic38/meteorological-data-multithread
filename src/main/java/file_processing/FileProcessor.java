@@ -7,17 +7,30 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 
 public class FileProcessor implements Runnable {
     private final Path file;
     private final ReadWriteLock lock;
     private final Map<Character, StationStats> inMemoryMap;
+    private final AtomicBoolean shutdown;
 
-    public FileProcessor(Path file, Map<Character, StationStats> inMemoryMap, ReadWriteLock lock) {
+    private final int assignedGeneration;
+    private final AtomicInteger currentGeneration;
+
+    public FileProcessor(Path file, Map<Character, StationStats> inMemoryMap, ReadWriteLock lock, AtomicBoolean shutdown,
+                         AtomicInteger currentGeneration,
+                         int assignedGeneration) {
         this.file = file;
         this.lock = lock;
         this.inMemoryMap = inMemoryMap;
+
+        this.shutdown = shutdown;
+        this.currentGeneration = currentGeneration;
+        this.assignedGeneration = assignedGeneration;
     }
 
     @Override
@@ -28,7 +41,7 @@ public class FileProcessor implements Runnable {
             }
 
             String line;
-            while ((line = reader.readLine()) != null) {
+            while ((currentGeneration.get() == assignedGeneration) && !shutdown.get() && (line = reader.readLine()) != null) {
                 processLine(line);
             }
         } catch (IOException e) {

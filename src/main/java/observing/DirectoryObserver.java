@@ -12,7 +12,10 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 
 public class DirectoryObserver implements Runnable {
@@ -26,8 +29,17 @@ public class DirectoryObserver implements Runnable {
     private final ScanCommandHandler scanCommandHandler;
     private final BlockingDeque<Command> commandQueue;
 
+    private final AtomicBoolean shutdown;
+
+    private final ExecutorService observerPool;
+    private final AtomicBoolean resetFlag = new AtomicBoolean(false);
+
+    private final AtomicInteger currentGeneration = new AtomicInteger(0);
+
+
     public DirectoryObserver(Path dir, ExecutorService processingPool, Map<Character, StationStats> inMemoryMap,
-                             ReadWriteLock readWriteLock, ScanCommandHandler scanCommandHandler, BlockingDeque<Command> commandQueue){
+                             ReadWriteLock readWriteLock, ScanCommandHandler scanCommandHandler, BlockingDeque<Command> commandQueue,
+                             AtomicBoolean shutdown, ExecutorService observerPool) {
         this.dir = dir;
         this.processingPool = processingPool;
         this.inMemoryMap = inMemoryMap;
@@ -35,18 +47,24 @@ public class DirectoryObserver implements Runnable {
 
         this.scanCommandHandler = scanCommandHandler;
         this.commandQueue = commandQueue;
+
+        this.shutdown = shutdown;
+        this.observerPool = observerPool;
     }
 
     @Override
     public void run() {
-        try {
-            while (!Thread.currentThread().isInterrupted()) {
-                observe();
-                Thread.sleep(5000); // provera svakih 5s
+        synchronized (observerPool){ // mora jer je u thread pool-u
+            try {
+                while (!shutdown.get() && !Thread.currentThread().isInterrupted()) {
+                    observe();
+                    observerPool.wait(20000); // provera svakih 5s, wait da bih mogao notify
+                }
+            } catch (InterruptedException e) {
+                System.out.println("[OBS] Observer interrupted.");
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
+
     }
 
     private void observe() {
@@ -98,18 +116,23 @@ public class DirectoryObserver implements Runnable {
 
 
     private void processAllFiles(Set<Path> currentFiles) {
-        try {
-            readWriteLock.writeLock().lock();
-            inMemoryMap.clear();
+        int newGeneration = currentGeneration.incrementAndGet();
 
-            currentFiles.forEach(file ->
-                    processingPool.submit(new FileProcessor(file, inMemoryMap, readWriteLock))
-            );
+        inMemoryMap.clear();
 
+        currentFiles.forEach(file ->
+                processingPool.submit(
+                        new FileProcessor(
+                                file,
+                                inMemoryMap,
+                                readWriteLock,
+                                shutdown,
+                                currentGeneration,
+                                newGeneration
+                        )
+                )
+        );
 
-            System.out.println("[OBS] Reprocessing all files (" + currentFiles.size() + " files)");
-        } finally {
-            readWriteLock.writeLock().unlock();
-        }
+        System.out.println("[OBS] Reprocessing all files (" + currentFiles.size() + " files)");
     }
 }

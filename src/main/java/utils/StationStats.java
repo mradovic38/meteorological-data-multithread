@@ -1,23 +1,23 @@
 package utils;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.DoubleAdder;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class StationStats {
     private final AtomicInteger count;
-    private final DoubleAdder sum; // hteo sam AtomicReference<BigInt> i <BigDecimal> al je presporo
+    private final AtomicReference<Double> sum; // hteo sam AtomicReference<BigInt> i <BigDecimal> al je presporo
 
     public StationStats() {
         this.count = new AtomicInteger(0);
-        this.sum = new DoubleAdder();
+        this.sum = new AtomicReference<>((double) 0);
     }
 
     public void addMeasurement(double temperature) {
         count.incrementAndGet();
-        sum.add(temperature);
+        sum.updateAndGet(oldValue -> oldValue + temperature);
     }
 
     public StationStatsSnapshot getSnapshot() {
-        return new StationStatsSnapshot(count.get(), sum.sum());
+        return new StationStatsSnapshot(count.get(), sum.get());
     }
 
     public static class StationStatsSnapshot {

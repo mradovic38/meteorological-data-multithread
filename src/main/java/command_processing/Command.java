@@ -5,14 +5,27 @@ import java.util.Map;
 
 public class Command {
     // ime komande
-    private final String name;
+    private String name;
     // argumenti
-    private final Map<String, String> args;
+    private Map<String, String> args;
+
+    private final boolean isPoison;
+
 
     public Command(String name, Map<String, String> args) {
         this.name = name;
         // nece biti potrebe za menjanjem
         this.args = Collections.unmodifiableMap(args);
+        this.isPoison = false;
+    }
+
+    // poison pill konstruktor
+    public Command(boolean isPoison){
+        this.isPoison = isPoison;
+    }
+
+    public boolean isPoison() {
+        return isPoison;
     }
 
     public String getName() {
@@ -30,9 +43,14 @@ public class Command {
 
     @Override
     public String toString() {
-        return "Command{" +
-                "name='" + name + '\'' +
-                ", args=" + args +
-                '}';
+        StringBuilder sb = new StringBuilder(name);
+        sb.append(" ");
+
+        for(Map.Entry<String, String> arg : args.entrySet()){
+            sb.append("--").append(arg.getKey()).append(" ");
+            if(arg.getValue() != null)
+                sb.append(arg.getValue()).append(" ");
+        }
+        return sb.toString();
     }
 }

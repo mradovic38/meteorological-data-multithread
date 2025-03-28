@@ -2,6 +2,7 @@ import command_processing.Command;
 import command_processing.CommandProcessor;
 
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Main {
     // single thread pool za citanje komandi
@@ -25,6 +26,8 @@ public class Main {
     // blocking queue za komande
     private static final BlockingDeque<Command> commandQueue = new LinkedBlockingDeque<>();
 
+    private static final AtomicBoolean shutdown = new AtomicBoolean(false);
+
 
     public static void main(String[] args) {
 
@@ -34,7 +37,8 @@ public class Main {
             directory = args[0];  // ako je prosledjen preko komandne linije
         }
 
-        CLIReader cli = new CLIReader(commandQueue, directory, commandProcessorPool, fileProcessingThreadPool, observerPool, scheduler);
+        CLIReader cli = new CLIReader(commandQueue, directory, commandProcessorPool, fileProcessingThreadPool,
+                observerPool, scheduler, cliPool, shutdown);
 
         cliPool.execute(cli);
 

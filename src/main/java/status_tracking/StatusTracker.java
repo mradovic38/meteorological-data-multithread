@@ -1,45 +1,47 @@
 package status_tracking;
 
 import command_processing.Command;
+import utils.JobInfo;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import java.util.Comparator;
 
 public class StatusTracker {
-    private static final Map<String, JobStatus> jobs = new ConcurrentHashMap<>();
-    private static final Map<String, Command> jobLoads = new ConcurrentHashMap<>();
+    public static final Map<String, JobInfo> jobs = new ConcurrentHashMap<>();
 
-    // prosledjivati null kao cmd ako nije Pending
-    public static void updateStatus(String jobId, JobStatus status, Command cmd) {
-        jobs.put(jobId, status);
 
-        if(status == JobStatus.PENDING) {
-            if(cmd == null)
-                System.out.println("FORGOT TO ADD CMD TO PENDING STATUS");
-            else
-                jobLoads.put(jobId, cmd);
+
+    public static synchronized void updateStatus(String jobId, JobStatus status, Command cmd) {
+        JobInfo jobInfo = jobs.get(jobId);
+        if (jobInfo != null) {
+            jobInfo.setStatus(status);
+            jobInfo.setCommand(cmd);
+        } else {
+            // zbog timestampa
+            jobs.put(jobId, new JobInfo(status, cmd));
         }
-        else{
-            jobLoads.remove(jobId);
-        }
-
-        if(status == JobStatus.COMPLETED || status == JobStatus.FAILED) {
-            System.out.println(getStatus(jobId));
-        }
-    }
-
-    public static Map<String, Command> getJobLoads() {
-        return jobLoads;
-    }
-
-    public static JobStatus getStatusObj(String jobId) {
-        return jobs.getOrDefault(jobId, JobStatus.UNKNOWN);
+        System.out.println(getStatus(jobId));
     }
 
 
     public static String getStatus(String jobId) {
-        JobStatus status = jobs.getOrDefault(jobId, JobStatus.UNKNOWN);
-        return "[STATUS] " + jobId + " is " + status.toString().toLowerCase() + ".";
+        JobInfo jobInfo = jobs.get(jobId);
+        if (jobInfo == null) {
+            return "[STATUS] " + jobId + " is unknown.";
+        }
+        return "[STATUS] " + jobId + " is " + jobInfo.getStatus().toString().toLowerCase() + ".";
+    }
+
+    public static List<String> getCommandsForRunningOrPendingJobs() {
+        return jobs.values().stream()
+                .filter(jobInfo -> jobInfo.getStatus() == JobStatus.PENDING || jobInfo.getStatus() == JobStatus.RUNNING)
+                .filter(jobInfo -> jobInfo.getCommand() != null)  // Skip jobs with null command
+                .sorted(Comparator.comparing(JobInfo::getTimestamp))  // Sort by timestamp (oldest first)
+                .map(jobInfo -> jobInfo.getCommand().toString())  // Get the toString() of the command
+                .collect(Collectors.toList());
     }
 
     public enum JobStatus {

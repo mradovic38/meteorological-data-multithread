@@ -6,7 +6,6 @@ import status_tracking.StatusTracker;
 import utils.StationStats;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Scanner;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,30 +21,37 @@ public class CLIReader implements Runnable {
     private final StartCommandHandler startCommandHandler;
     private final ShutdownCommandHandler shutdownCommandHandler;
 
+    private final AtomicBoolean shutdown;
+
 
     public CLIReader(BlockingDeque<Command> commandQueue,
                      String directoryStr,
                      ExecutorService commandProcessorPool,
                      ExecutorService fileProcessingThreadPool,
                      ExecutorService observerPool,
-                     ScheduledExecutorService scheduler){
+                     ScheduledExecutorService scheduler,
+                     ExecutorService cliPool,
+                     AtomicBoolean shutdown) {
 
         this.commandQueue = commandQueue;
 
         ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
         Map<Character, StationStats> inMemoryMap = new ConcurrentHashMap<>();
-        this.startCommandHandler = new StartCommandHandler(directoryStr, fileProcessingThreadPool,
-                observerPool, inMemoryMap, readWriteLock, commandQueue, scheduler, commandProcessorPool);
 
-        this.shutdownCommandHandler = new ShutdownCommandHandler();
+        this.shutdown = shutdown;
+
+        this.startCommandHandler = new StartCommandHandler(directoryStr, fileProcessingThreadPool,
+                observerPool, inMemoryMap, readWriteLock, commandQueue, scheduler, commandProcessorPool, shutdown);
+
+
+        this.shutdownCommandHandler = new ShutdownCommandHandler(commandQueue, observerPool, scheduler, fileProcessingThreadPool, cliPool, commandProcessorPool, shutdown);
     }
 
     @Override
     public void run() {
         Scanner scanner = new Scanner(System.in);
 
-        while (!Thread.currentThread().isInterrupted()) {
-
+        while (!Thread.currentThread().isInterrupted() && !shutdown.get()) {
             if (!scanner.hasNextLine()) continue;
 
             String line = scanner.nextLine().trim();
@@ -72,7 +78,7 @@ public class CLIReader implements Runnable {
             try {
                 if (running.get()) { // samo ako je startovano
                     if (command.getArgs().containsKey("job") && !command.getName().equalsIgnoreCase("STATUS")) {
-                        StatusTracker.updateStatus(command.getArgs().get("job"), StatusTracker.JobStatus.PENDING, command);
+                        StatusTracker.updateStatus(command.getArgByKey("job"), StatusTracker.JobStatus.PENDING, command);
                     }
                 commandQueue.put(command);
             }
@@ -83,6 +89,7 @@ public class CLIReader implements Runnable {
                 System.err.println("[CLI] Error adding command to queue.");
             }
         }
+
         scanner.close();
     }
 }

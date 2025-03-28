@@ -1,18 +1,22 @@
 package command_processing.command_handlers;
 
 import command_processing.Command;
+import command_processing.CommandParser;
 import command_processing.CommandProcessor;
+import command_processing.ParseResult;
 import observing.DirectoryObserver;
-import org.yaml.snakeyaml.Yaml;
+import report_generation.MapWriter;
 import report_generation.ReportGenerator;
 import utils.StationStats;
+import utils.YAMLUtils;
 
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 
 public class StartCommandHandler implements CommandHandler {
@@ -23,12 +27,12 @@ public class StartCommandHandler implements CommandHandler {
     private final ReadWriteLock readWriteLock;
     private final String directory;
 
-    private Path directoryPath;
-
 
     private final ExecutorService commandProcessorPool;
     private final ScheduledExecutorService scheduler;
     private final BlockingDeque<Command> commandQueue;
+
+    private final AtomicBoolean shutdown;
 
     public StartCommandHandler(String directory,
                                ExecutorService fileProcessingThreadPool,
@@ -37,7 +41,8 @@ public class StartCommandHandler implements CommandHandler {
                                ReadWriteLock readWriteLock,
                                BlockingDeque<Command> commandQueue,
                                ScheduledExecutorService scheduler,
-                               ExecutorService commandProcessorPool) {
+                               ExecutorService commandProcessorPool,
+                               AtomicBoolean shutdown) {
         this.directory = directory;
         this.fileProcessingThreadPool = fileProcessingThreadPool;
         this.observerPool = observerPool;
@@ -46,6 +51,7 @@ public class StartCommandHandler implements CommandHandler {
         this.commandProcessorPool = commandProcessorPool;
         this.scheduler = scheduler;
         this.commandQueue = commandQueue;
+        this.shutdown = shutdown;
     }
 
 
@@ -53,53 +59,64 @@ public class StartCommandHandler implements CommandHandler {
     public void handle(Command command) {
 
 
+        Path directoryPath;
+        Path exportPath = Paths.get("");
+
         try {
             if (this.directory == null) {
-                this.directoryPath = Paths.get(loadFromConfig("directory"));
+                directoryPath = Paths.get(YAMLUtils.loadFromConfig("directory"));
             } else {
-                this.directoryPath = Paths.get(directory);
+                directoryPath = Paths.get(directory);
             }
         }
         catch(Exception e){
-            System.err.println("[START] Error handling start command: " + e.getMessage());
+            System.err.println("[START] Error handling start command.");
             return;
         }
 
-        if(command.getArgs().containsKey("load-config")){
-            // TODO: ucitaj stare poslove
+        if(command.getArgs().containsKey("load-jobs")){
+            List<String> commandStrs = YAMLUtils.loadJobsFromYaml();
+            for(String commandStr : commandStrs){
+                ParseResult res = CommandParser.parse(commandStr);
+                if(!res.hasErrors()){
+                    Command newCommand = res.getCommand();
+                    if(newCommand.getName().equalsIgnoreCase("scan")) {
+                        System.out.println("[START] Added command to queue: " + commandStr);
+                        commandQueue.add(newCommand);
+                    }
+                    else{
+                        System.out.println("[START] Can only load scan commands from load_config.yaml.");
+                    }
+                }
+                else {
+                    System.err.println("[START] Error parsing command: " + commandStr);
+                }
+                YAMLUtils.writeJobsToYaml(new ArrayList<>());
+            }
+            exportPath = Paths.get(YAMLUtils.loadFromConfig("export-file"));
         }
 
-        Path exportPath = Paths.get(loadFromConfig("export-file"));
 
-        ScanCommandHandler scan = new ScanCommandHandler(this.directoryPath, fileProcessingThreadPool);
 
-        DirectoryObserver watcher = new DirectoryObserver(this.directoryPath, fileProcessingThreadPool, inMemoryMap, readWriteLock, scan, commandQueue);
+        ScanCommandHandler scan = new ScanCommandHandler(directoryPath, fileProcessingThreadPool, shutdown);
+
+        DirectoryObserver watcher = new DirectoryObserver(directoryPath, fileProcessingThreadPool, inMemoryMap, readWriteLock, scan, commandQueue, shutdown, observerPool);
         this.observerPool.execute(watcher);
 
         StatusCommandHandler status = new StatusCommandHandler();
         MapCommandHandler map = new MapCommandHandler(inMemoryMap);
 
-        // osigurava da EXPORTMAP i ReportGenerator ne rade istovremeno
-        Object exportLock = new Object();
+        // loguje stanje inmemory mape
+        MapWriter mapWriter = new MapWriter(inMemoryMap, exportPath, readWriteLock, shutdown);
 
-        ExportmapCommandHandler exportmap = new ExportmapCommandHandler(fileProcessingThreadPool, inMemoryMap, readWriteLock, exportPath, exportLock);
+        ExportmapCommandHandler exportmap = new ExportmapCommandHandler(mapWriter);
 
-        CommandProcessor commandProcessor = new CommandProcessor(this.commandQueue, scan, status, map, exportmap);
+        CommandProcessor commandProcessor = new CommandProcessor(commandQueue, scan, status, map, exportmap);
 
-        ReportGenerator reportGenerator = new ReportGenerator(inMemoryMap, readWriteLock, exportPath, exportLock);
+        ReportGenerator reportGenerator = new ReportGenerator(mapWriter);
         this.scheduler.scheduleAtFixedRate(reportGenerator, 1, 1, TimeUnit.MINUTES);
 
         this.commandProcessorPool.execute(commandProcessor);
     }
 
-
-    private static String loadFromConfig(String key) {
-        try (InputStream input = new FileInputStream("src/main/resources/load_config.yaml")) {
-            Yaml yaml = new Yaml();
-            Map<String, Object> config = yaml.load(input);
-            return (String) config.get(key);
-        } catch (Exception e) {
-            throw new RuntimeException("Check if the config file exists.");
-        }
-    }
 }

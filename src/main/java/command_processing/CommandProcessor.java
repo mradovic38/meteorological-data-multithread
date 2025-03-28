@@ -37,6 +37,11 @@ public class CommandProcessor implements Runnable{
 
                 Command command = commandQueue.take(); // ovo blokira ako je empty
 
+                if(command.isPoison()) {
+                    System.out.println("[CMD] Poison pill received. Shutting down command processor.");
+                    return;
+                }
+
                 switch (command.getName()) {
 
                     case "SCAN":

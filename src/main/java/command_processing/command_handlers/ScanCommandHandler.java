@@ -29,9 +29,13 @@ public class ScanCommandHandler implements CommandHandler {
 
     private final Map<String, ScanJobContext> activeJobs = new ConcurrentHashMap<>();
 
-    public ScanCommandHandler(Path dir, ExecutorService fileProcessingThreadPool) {
+    private final AtomicBoolean shutdown;
+
+
+    public ScanCommandHandler(Path dir, ExecutorService fileProcessingThreadPool, AtomicBoolean shutdown) {
         this.fileProcessingThreadPool = fileProcessingThreadPool;
         this.dir = dir;
+        this.shutdown = shutdown;
     }
     public void handle(Command command) {
         try {
@@ -65,7 +69,7 @@ public class ScanCommandHandler implements CommandHandler {
 
     private void scan(Command command, double minTemp, double maxTemp, char letter, Path outputPath, Path dir, String jobName, ExecutorService executor) {
         // status -> running
-        StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.RUNNING, null);
+        StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.RUNNING, command);
 
         BufferedWriter writer = null;
 
@@ -96,11 +100,11 @@ public class ScanCommandHandler implements CommandHandler {
                 files.stream()
                         .map(file -> executor.submit(new ScanSingleTask(file, minTemp, maxTemp, letter, scanLock,
                                 finalWriter, cancelledFlag, counter, totalFiles, jobName, activeJobs, command,
-                                fileLocks, outputPath))).collect(Collectors.toList());;
+                                fileLocks, outputPath, shutdown))).collect(Collectors.toList());
 
 
             } catch (Exception e) {
-                StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.FAILED, null);
+                StatusTracker.updateStatus(jobName, StatusTracker.JobStatus.FAILED, command);
                 System.err.println("[SCAN] " +  command.getName() +  " failed: " + e.getMessage());
             }
         }
