@@ -118,7 +118,9 @@ public class DirectoryObserver implements Runnable {
     private void processAllFiles(Set<Path> currentFiles) {
         int newGeneration = currentGeneration.incrementAndGet();
 
+        readWriteLock.writeLock().lock();
         inMemoryMap.clear();
+        readWriteLock.writeLock().unlock();
 
         currentFiles.forEach(file ->
                 processingPool.submit(
